@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'capture_screen.dart';
 import 'forge_screen.dart';
 import 'timeline_screen.dart';
+import 'ai_chatbot.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -40,6 +41,8 @@ class HomeScreen extends StatelessWidget {
               _buildButton(context, 'Enter the Forge', const ForgeScreen()),
               const SizedBox(height: 24),
               _buildButton(context, 'View Timeline', const TimelineScreen()),
+              const SizedBox(height: 24),
+              _buildButton(context, 'Feeling Chat-Bot', const FeelingsChat()),
             ],
           ),
         ),
