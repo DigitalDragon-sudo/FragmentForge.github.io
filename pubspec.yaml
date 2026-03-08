@@ -1,0 +1,30 @@
+name: fragment_forge
+description: Identity exploration app for teens
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.3
+  image_picker: ^1.1.2
+  record: ^5.1.2
+  audioplayers: ^6.1.0
+  sensors_plus: ^5.0.0
+  permission_handler: ^11.3.1
+  http: ^1.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.12
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
