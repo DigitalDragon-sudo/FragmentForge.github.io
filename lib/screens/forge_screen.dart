@@ -1,8 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:http/http.dart' as http;
 import '../models/fragment.dart';
+
+const String _groqApiKey = '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';
+const String _groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
 class ForgeScreen extends StatefulWidget {
   const ForgeScreen({super.key});
@@ -14,20 +19,70 @@ class ForgeScreen extends StatefulWidget {
 class _ForgeScreenState extends State<ForgeScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final Map<int, String> _aiDescriptions = {};
+  final Map<int, bool> _loadingStates = {};
 
-  String _generateAIRemixDescription(Fragment frag) {
-    String base = frag.text.isNotEmpty
-        ? frag.text
-        : (frag.moodTag != 'Unknown' ? frag.moodTag : 'a silent moment');
-    String mood =
-        frag.moodTag != 'Unknown' ? frag.moodTag.toLowerCase() : 'raw';
-    return "In the fractured neon of midnight, $base folds into itself — $mood shards reflecting a thousand unfinished versions of you. The edges bleed static, whispering: you are not one story, you are the collision.";
-  }
+  Future<void> _aiRemix(int index, Fragment frag) async {
+    setState(() => _loadingStates[index] = true);
 
-  void _aiRemix(int index, Fragment frag) {
-    setState(() {
-      _aiDescriptions[index] = _generateAIRemixDescription(frag);
-    });
+    // Build a unique prompt from this specific fragment's data
+    final mood = frag.moodTag != 'Unknown' ? frag.moodTag : 'undefined';
+    final text = frag.text.isNotEmpty ? frag.text : 'no words, just feeling';
+    final time = frag.timestamp.toString().substring(0, 16);
+    final hasImage = frag.imagePath != null ? 'yes' : 'no';
+    final hasVoice = frag.audioPath != null ? 'yes' : 'no';
+
+    final prompt = '''
+You are a surreal poet for an app called FragmentForge where teens capture raw emotional moments.
+
+Take this specific emotional fragment and rewrite it as a unique, poetic, artistic interpretation.
+Every remix must feel completely different — never use the same structure or metaphors twice.
+
+Fragment details:
+- Mood tag: $mood
+- What they wrote: "$text"
+- Captured at: $time
+- Has photo: $hasImage
+- Has voice recording: $hasVoice
+
+Write 2-3 sentences of surreal, vivid poetry that is specific to THIS fragment.
+Make it feel like art, not therapy. Be unexpected and emotionally alive.
+''';
+
+    try {
+      final response = await http.post(
+        Uri.parse(_groqEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_groqApiKey',
+        },
+        body: jsonEncode({
+          'model': 'llama-3.3-70b-versatile',
+          'max_tokens': 200,
+          'messages': [
+            {'role': 'user', 'content': prompt},
+          ],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final reply = data['choices'][0]['message']['content'] as String;
+        setState(() {
+          _aiDescriptions[index] = reply.trim();
+          _loadingStates[index] = false;
+        });
+      } else {
+        setState(() {
+          _aiDescriptions[index] = 'The signal got lost. Tap again to retry.';
+          _loadingStates[index] = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _aiDescriptions[index] = 'Could not reach the forge. Try again.';
+        _loadingStates[index] = false;
+      });
+    }
   }
 
   @override
@@ -49,6 +104,7 @@ class _ForgeScreenState extends State<ForgeScreen> {
             itemBuilder: (context, index) {
               final frag = fragments[index];
               final aiText = _aiDescriptions[index];
+              final isLoading = _loadingStates[index] ?? false;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 16),
@@ -103,14 +159,28 @@ class _ForgeScreenState extends State<ForgeScreen> {
                           },
                         ),
                       const SizedBox(height: 12),
+
+                      // ── AI Remix Button ──────────────────
                       ElevatedButton.icon(
-                        icon: const Icon(Icons.auto_awesome),
-                        label: const Text('AI Remix'),
+                        icon: isLoading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.auto_awesome),
+                        label: Text(isLoading ? 'Remixing...' : 'AI Remix'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.deepPurpleAccent,
                         ),
-                        onPressed: () => _aiRemix(index, frag),
+                        onPressed:
+                            isLoading ? null : () => _aiRemix(index, frag),
                       ),
+
+                      // ── AI Remix Result ──────────────────
                       if (aiText != null) ...[
                         const SizedBox(height: 12),
                         Container(
