@@ -15,7 +15,7 @@ import 'package:http/http.dart' as http;
 //         builder: (_) => const FeelingsChat()));
 // ─────────────────────────────────────────────
 
-const String _groqApiKey = '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';
+const String _groqApiKey = 'YOUR_GROQ_API_KEY_HERE';
 const String _groqModel = 'llama-3.3-70b-versatile';
 const String _groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
