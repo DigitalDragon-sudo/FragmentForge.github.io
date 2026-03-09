@@ -6,7 +6,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:http/http.dart' as http;
 import '../models/fragment.dart';
 
-const String _groqApiKey = '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';
 const String _groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
 class ForgeScreen extends StatefulWidget {
@@ -21,10 +20,91 @@ class _ForgeScreenState extends State<ForgeScreen> {
   final Map<int, String> _aiDescriptions = {};
   final Map<int, bool> _loadingStates = {};
 
+  // API key stored in memory only — never saved to disk or repo
+  String _groqApiKey = '';
+
+  // ── Ask user for API key if not set ─────
+  Future<String?> _getApiKey() async {
+    if (_groqApiKey.isNotEmpty) return _groqApiKey;
+
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1826),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          '⚡ Enter Groq API Key',
+          style: TextStyle(color: Color(0xFFF3E8FF), fontSize: 16),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Get a free key at console.groq.com/keys\n(Sign in with Google — no card needed)',
+              style: TextStyle(color: Color(0xFFA78BBC), fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              obscureText: true,
+              style: const TextStyle(color: Color(0xFFF3E8FF), fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'gsk_...',
+                hintStyle: const TextStyle(color: Color(0xFFA78BBC)),
+                filled: true,
+                fillColor: const Color(0xFF0D0A0F),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF3D2B52)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF3D2B52)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.deepPurpleAccent),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFFA78BBC))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurpleAccent,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      setState(() => _groqApiKey = result);
+      return result;
+    }
+    return null;
+  }
+
+  // ── AI Remix call ────────────────────────
   Future<void> _aiRemix(int index, Fragment frag) async {
+    final key = await _getApiKey();
+    if (key == null) return;
+
     setState(() => _loadingStates[index] = true);
 
-    // Build a unique prompt from this specific fragment's data
     final mood = frag.moodTag != 'Unknown' ? frag.moodTag : 'undefined';
     final text = frag.text.isNotEmpty ? frag.text : 'no words, just feeling';
     final time = frag.timestamp.toString().substring(0, 16);
@@ -53,7 +133,7 @@ Make it feel like art, not therapy. Be unexpected and emotionally alive.
         Uri.parse(_groqEndpoint),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_groqApiKey',
+          'Authorization': 'Bearer $key',
         },
         body: jsonEncode({
           'model': 'llama-3.3-70b-versatile',
@@ -72,8 +152,10 @@ Make it feel like art, not therapy. Be unexpected and emotionally alive.
           _loadingStates[index] = false;
         });
       } else {
+        final err = jsonDecode(response.body);
         setState(() {
-          _aiDescriptions[index] = 'The signal got lost. Tap again to retry.';
+          _aiDescriptions[index] =
+              err['error']?['message'] ?? 'Something went quiet. Tap to retry.';
           _loadingStates[index] = false;
         });
       }
@@ -88,7 +170,18 @@ Make it feel like art, not therapy. Be unexpected and emotionally alive.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('The Forge')),
+      appBar: AppBar(
+        title: const Text('The Forge'),
+        actions: [
+          // Let user reset their API key
+          if (_groqApiKey.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.key, size: 18),
+              tooltip: 'Change API Key',
+              onPressed: () => setState(() => _groqApiKey = ''),
+            ),
+        ],
+      ),
       body: ValueListenableBuilder<Box<Fragment>>(
         valueListenable: Hive.box<Fragment>('fragments').listenable(),
         builder: (context, box, _) {
@@ -180,7 +273,7 @@ Make it feel like art, not therapy. Be unexpected and emotionally alive.
                             isLoading ? null : () => _aiRemix(index, frag),
                       ),
 
-                      // ── AI Remix Result ──────────────────
+                      // ── AI Result ────────────────────────
                       if (aiText != null) ...[
                         const SizedBox(height: 12),
                         Container(
